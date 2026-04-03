@@ -131,17 +131,51 @@ fi
 echo "[Step 6/10] Syncing application code..."
 mkdir -p "${APP_DIR}"
 
-if [ -d "${APP_DIR}/.git" ]; then
-  echo "  Repository exists. Pulling latest changes..."
-  cd "${APP_DIR}"
-  git fetch origin "${REPO_BRANCH}" 2>/dev/null
-  git reset --hard "origin/${REPO_BRANCH}" 2>/dev/null
-  echo "  Code updated to latest commit: $(git log --oneline -1)"
+if [ "${DEPLOY_SOURCE}" = "tarball" ] && [ -f /tmp/project.tar.gz ]; then
+  echo "  Using tarball deploy mode (uploaded from GitHub Actions)..."
+  # Backup existing code if present
+  if [ -d "${APP_DIR}" ]; then
+    echo "  Backing up existing code..."
+    mv "${APP_DIR}" "${APP_DIR}.bak.$(date +%s)" 2>/dev/null || true
+  fi
+  mkdir -p "${APP_DIR}"
+  tar xzf /tmp/project.tar.gz -C "${APP_DIR}" 2>&1
+  echo "  Project files extracted to ${APP_DIR}."
+  rm -f /tmp/project.tar.gz
 else
-  echo "  Cloning repository (branch: ${REPO_BRANCH})..."
-  rm -rf "${APP_DIR}"
-  git clone -b "${REPO_BRANCH}" --depth 1 "${REPO_URL}" "${APP_DIR}" 2>/dev/null
-  echo "  Repository cloned."
+  # Use GITHUB_TOKEN for authenticated clone if available
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    AUTH_REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/Yogdunana/Yogdu-Private-Referral.git"
+  else
+    AUTH_REPO_URL="${REPO_URL}"
+  fi
+
+  if [ -d "${APP_DIR}/.git" ]; then
+    echo "  Repository exists. Pulling latest changes..."
+    cd "${APP_DIR}"
+    git fetch origin "${REPO_BRANCH}" 2>&1 | tail -3
+    git reset --hard "origin/${REPO_BRANCH}" 2>&1
+    echo "  Code updated to latest commit: $(git log --oneline -1)"
+  else
+    echo "  Cloning repository (branch: ${REPO_BRANCH})..."
+    rm -rf "${APP_DIR}"
+    # Retry clone up to 3 times with 10s delay
+    CLONE_SUCCESS=0
+    for i in 1 2 3; do
+      echo "  Attempt ${i}/3..."
+      if git clone -b "${REPO_BRANCH}" --depth 1 "${AUTH_REPO_URL}" "${APP_DIR}" 2>&1; then
+        CLONE_SUCCESS=1
+        break
+      fi
+      echo "  Clone failed, waiting 10s before retry..."
+      sleep 10
+    done
+    if [ "${CLONE_SUCCESS}" -eq 0 ]; then
+      echo "  ERROR: Failed to clone repository after 3 attempts."
+      exit 1
+    fi
+    echo "  Repository cloned."
+  fi
 fi
 
 # --- Install npm dependencies ---

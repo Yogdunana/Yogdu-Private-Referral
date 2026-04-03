@@ -78,6 +78,7 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
 
@@ -86,6 +87,20 @@ jobs:
             -P "${SERVER_PORT}" \
             .github/workflows/deploy.sh \
             "${SERVER_USER}@${SERVER_HOST}:/tmp/deploy.sh"
+
+          echo "=== Syncing project files to server ==="
+          # Create a tarball of the project (excluding .git, node_modules, .next)
+          tar czf /tmp/project.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            .
+          sshpass -p "${SERVER_PASSWORD}" scp ${SSH_OPTS} \
+            -P "${SERVER_PORT}" \
+            /tmp/project.tar.gz \
+            "${SERVER_USER}@${SERVER_HOST}:/tmp/project.tar.gz"
 
           echo "=== Executing deploy script on server ==="
           sshpass -p "${SERVER_PASSWORD}" ssh ${SSH_OPTS} \
@@ -101,6 +116,8 @@ jobs:
              SMTP_PASS=\"${SMTP_PASS}\" \
              EMAIL_FROM=\"${EMAIL_FROM}\" \
              NEXT_PUBLIC_APP_URL=\"${NEXT_PUBLIC_APP_URL}\" \
+             GITHUB_TOKEN=\"${GITHUB_TOKEN}\" \
+             DEPLOY_SOURCE=tarball \
              bash /tmp/deploy.sh"
 
       - name: Health check

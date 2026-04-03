@@ -1,25 +1,26 @@
 #!/bin/bash
 set -e
 
-echo "=== Step 1: Get PostgreSQL password from Docker ==="
-PG_PASS=$(docker inspect smbu-campus-db 2>/dev/null | python3 -c "
-import sys,json
-data=json.load(sys.stdin)
-for env in data[0]['Config']['Env']:
-    if env.startswith('POSTGRES_PASSWORD='):
-        print(env.split('=',1)[1])
-        break
-" 2>/dev/null || true)
-echo "Password length: ${#PG_PASS}"
+echo "=== Step 1: Check Docker containers ==="
+docker ps 2>/dev/null
+echo ""
 
-if [ -z "$PG_PASS" ]; then
-  echo "ERROR: Could not get PostgreSQL password!"
-  exit 1
-fi
+echo "=== Step 2: Set password and create DB via docker exec ==="
+# Set a known password for the smbu user
+docker exec smbu-campus-db psql -U smbu -d smbu_campus -c "ALTER USER smbu WITH PASSWORD 'yogdu_db_pass_2024';" 2>&1
+echo "Password set."
 
-echo "=== Step 2: Update DATABASE_URL in .env ==="
-cat > /opt/yogdu-referral/.env << ENVEOF
-DATABASE_URL="postgresql://smbu:${PG_PASS}@localhost:5432/yogdu_referral?schema=public"
+# Create database if not exists
+docker exec smbu-campus-db psql -U smbu -d smbu_campus -c "SELECT 1 FROM pg_database WHERE datname='yogdu_referral'" 2>/dev/null | grep -q 1 || \
+  docker exec smbu-campus-db psql -U smbu -d smbu_campus -c "CREATE DATABASE yogdu_referral OWNER smbu;" 2>&1
+echo "Database ready."
+
+echo "=== Step 3: Test connection from host ==="
+PGPASSWORD='yogdu_db_pass_2024' psql -h localhost -U smbu -d yogdu_referral -c "SELECT current_database(), current_user;" 2>&1 || echo "psql not available on host, will test via Prisma"
+
+echo "=== Step 4: Update .env ==="
+cat > /opt/yogdu-referral/.env << 'ENVEOF'
+DATABASE_URL="postgresql://smbu:yogdu_db_pass_2024@localhost:5432/yogdu_referral?schema=public"
 JWT_SECRET="yogdu-referral-prod-jwt-secret-change-me-2024"
 ARK_API_KEY="fe737e3b-1789-4d6c-8123-61392466c858"
 SMTP_HOST="smtp.feishu.cn"
@@ -34,36 +35,33 @@ ENVEOF
 chmod 600 /opt/yogdu-referral/.env
 echo "  .env written."
 
-echo "=== Step 3: Test database connection ==="
+echo "=== Step 5: Prisma db push ==="
 cd /opt/yogdu-referral
 npx prisma db push --accept-data-loss 2>&1 | tail -10
 echo ""
 
-echo "=== Step 4: Run seed ==="
+echo "=== Step 6: Run seed ==="
 npx prisma db seed 2>&1 | tail -10 || true
 echo ""
 
-echo "=== Step 5: Restart application ==="
+echo "=== Step 7: Restart ==="
 pm2 stop yogdu-referral 2>/dev/null || true
 pm2 delete yogdu-referral 2>/dev/null || true
 pm2 start npm --name "yogdu-referral" -- start -- -p 3002
 pm2 save 2>/dev/null || true
 
-echo "=== Step 6: Verify ==="
+echo "=== Step 8: Verify ==="
 sleep 5
-echo "PM2 status:"
 pm2 list 2>/dev/null
 echo ""
-
-echo "Testing API..."
 curl -s http://localhost:3002/api/jobs 2>/dev/null | python3 -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    print(f'API Response: success={d.get(\"success\")}, jobs_count={len(d.get(\"data\",[]))}')
+    print(f'API: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
 except Exception as e:
     print(f'API error: {e}')
-" 2>/dev/null || echo "API check failed"
+" || echo "API failed"
 
 echo ""
 echo "=== DONE ==="

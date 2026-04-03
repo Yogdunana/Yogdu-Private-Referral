@@ -33,7 +33,7 @@ export async function PATCH(
     await prisma.auditLog.create({
       data: {
         userId: admin.id,
-        action: 'USER_ROLE_CHANGE' as 'USER_ROLE_CHANGE',
+        action: 'USER_ROLE_CHANGE',
         detail: `将用户 ${user.name} (${user.email}) 的角色从 ${user.role} 变更为 ${newRole}`,
       },
     });

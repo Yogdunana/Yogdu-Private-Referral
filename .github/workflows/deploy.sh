@@ -287,11 +287,21 @@ pm2 startup 2>/dev/null > /dev/null || true
 # Configure Nginx reverse proxy
 echo "  Configuring Nginx reverse proxy..."
 if command -v nginx &>/dev/null; then
-  cat > /etc/nginx/sites-available/yogdu-referral << 'NGINXEOF'
+  # Check if SSL certificate exists
+  if [ -f "/etc/letsencrypt/live/maixuan.yogdunana.com/fullchain.pem" ]; then
+    cat > /etc/nginx/sites-available/yogdu-referral << 'NGINXEOF'
 server {
     listen 80;
-    server_name _;
-
+    server_name maixuan.yogdunana.com;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl http2;
+    server_name maixuan.yogdunana.com;
+    ssl_certificate /etc/letsencrypt/live/maixuan.yogdunana.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/maixuan.yogdunana.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
     location / {
         proxy_pass http://127.0.0.1:3002;
         proxy_http_version 1.1;
@@ -307,6 +317,27 @@ server {
     }
 }
 NGINXEOF
+  else
+    cat > /etc/nginx/sites-available/yogdu-referral << 'NGINXEOF'
+server {
+    listen 80;
+    server_name maixuan.yogdunana.com;
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+}
+NGINXEOF
+  fi
   rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
   ln -sf /etc/nginx/sites-available/yogdu-referral /etc/nginx/sites-enabled/yogdu-referral
   nginx -t 2>/dev/null && (service nginx reload 2>/dev/null || nginx -s reload 2>/dev/null) && echo "  Nginx configured." || echo "  WARNING: Nginx config failed."

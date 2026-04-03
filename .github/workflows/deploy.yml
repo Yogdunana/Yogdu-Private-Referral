@@ -134,6 +134,6 @@ jobs:
           sshpass -p "${SERVER_PASSWORD}" ssh ${SSH_OPTS} \
             -p "${SERVER_PORT}" \
             "${SERVER_USER}@${SERVER_HOST}" \
-            "curl -sf http://localhost:3002 > /dev/null && echo 'Health check PASSED' || echo 'Health check FAILED'"
+            "curl -sf http://localhost/api/jobs > /dev/null && echo 'Health check PASSED' || echo 'Health check FAILED'"
 
           echo "=== Deployment finished ==="

@@ -1,42 +1,35 @@
 #!/bin/bash
-set -e
-
-echo "=== Step 1: Run seed ==="
-cd /opt/yogdu-referral
-export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
-npx prisma db seed 2>&1 | tail -10
+echo "=== Nginx config ==="
+cat /etc/nginx/sites-enabled/yogdu-referral 2>/dev/null || echo "No yogdu-referral config!"
+ls /etc/nginx/sites-enabled/ 2>/dev/null
 echo ""
-
-echo "=== Step 2: Reload Nginx ==="
+echo "=== Test nginx ==="
 nginx -t 2>&1
-service nginx reload 2>/dev/null || nginx -s reload 2>/dev/null
-echo "Nginx reloaded."
 echo ""
-
-echo "=== Step 3: Test login ==="
-curl -s -X POST http://localhost:3002/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@youdoo.com","password":"admin123456"}' 2>/dev/null | python3 -c "
+echo "=== PM2 ==="
+pm2 list 2>/dev/null
+echo ""
+echo "=== Port 3002 ==="
+ss -tlnp | grep 3002 || echo "Not on 3002"
+echo ""
+echo "=== Port 80 ==="
+ss -tlnp | grep ":80 " || echo "Not on 80"
+echo ""
+echo "=== Local test ==="
+curl -s http://localhost:3002/api/jobs 2>/dev/null | python3 -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    print(f'Login: success={d.get(\"success\")}, has_token={bool(d.get(\"token\"))}, error={d.get(\"error\",\"none\")}')
+    print(f'3002: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
 except Exception as e:
     print(f'Error: {e}')
-"
+" 2>/dev/null || echo "3002 failed"
 echo ""
-
-echo "=== Step 4: Test Nginx ==="
 curl -s http://localhost/api/jobs 2>/dev/null | python3 -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    print(f'Nginx->Jobs: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
+    print(f'80: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
 except Exception as e:
     print(f'Error: {e}')
-"
-echo ""
-curl -s http://localhost/ 2>/dev/null | grep -o '<title>[^<]*</title>' || echo "No title"
-echo ""
-
-echo "=== DONE ==="
+" 2>/dev/null || echo "80 failed"

@@ -1,44 +1,36 @@
 #!/bin/bash
-# Debug script to check server environment
-echo "=== System Info ==="
-uname -a
+# Debug script to check PostgreSQL Docker config
+echo "=== Docker Containers ==="
+docker ps 2>/dev/null || echo "Docker not available"
 echo ""
 
-echo "=== Node.js ==="
-node -v
-echo ""
-
-echo "=== PostgreSQL ==="
-if command -v psql &>/dev/null; then
-  psql --version
-  pg_isready
-  echo "PostgreSQL clusters:"
-  ls /etc/postgresql/ 2>/dev/null
+echo "=== Docker Compose Files ==="
+find /opt -name "docker-compose*" -o -name ".env" 2>/dev/null | while read f; do
+  echo "--- $f ---"
+  cat "$f" 2>/dev/null | grep -v "^#" | grep -v "^$"
   echo ""
-  echo "pg_hba.conf (auth config):"
-  cat /etc/postgresql/*/main/pg_hba.conf 2>/dev/null | grep -v "^#" | grep -v "^$"
-  echo ""
-  echo "Trying to connect as postgres user:"
-  su - postgres -c "psql -c 'SELECT version();'" 2>&1
-  echo ""
-  echo "List of databases:"
-  su - postgres -c "psql -l" 2>&1
-else
-  echo "PostgreSQL not installed"
-fi
-echo ""
+done
 
 echo "=== PM2 Processes ==="
-pm2 list 2>/dev/null || echo "PM2 not available"
+pm2 list 2>/dev/null
+pm2 env 0 2>/dev/null | head -20
 echo ""
 
-echo "=== Listening Ports ==="
-ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null
+echo "=== yogdu-referral .env ==="
+cat /opt/yogdu-referral/.env 2>/dev/null | grep -i "database\|db_\|postgres" || echo "No DATABASE_URL found"
 echo ""
 
-echo "=== /opt contents ==="
-ls -la /opt/ 2>/dev/null
+echo "=== smbu-campus .env (for DB reference) ==="
+cat /opt/smbu-campus/.env 2>/dev/null | grep -i "database\|db_\|postgres" || echo "No DB config found"
 echo ""
 
-echo "=== Running on port 3000 ==="
-curl -s http://localhost:3000 2>/dev/null | head -5 || echo "Nothing on port 3000"
+echo "=== smbu-campus docker-compose ==="
+cat /opt/smbu-campus/docker-compose.yml 2>/dev/null || echo "No docker-compose.yml"
+echo ""
+
+echo "=== Check if yogdu-referral PM2 process exists ==="
+pm2 describe yogdu-referral 2>/dev/null || echo "Process not found"
+echo ""
+
+echo "=== Check port 3002 ==="
+curl -s http://localhost:3002 2>/dev/null | head -3 || echo "Nothing on port 3002"

@@ -266,10 +266,11 @@ fi
 # Create startup script that loads .env
 cat > "${APP_DIR}/start.sh" << 'STARTEOF'
 #!/bin/bash
+cd "$(dirname "$0")"
 set -a
 source "$(dirname "$0")/.env"
 set +a
-exec npx next start -p "${PORT:-3002}"
+exec node_modules/.bin/next start -p "${PORT:-3002}"
 STARTEOF
 chmod +x "${APP_DIR}/start.sh"
 
@@ -282,6 +283,34 @@ pm2 start "${APP_DIR}/start.sh" --name "${APP_NAME}"
 pm2 save 2>/dev/null || true
 # Generate startup script (ignore errors if not supported)
 pm2 startup 2>/dev/null > /dev/null || true
+
+# Configure Nginx reverse proxy
+echo "  Configuring Nginx reverse proxy..."
+if command -v nginx &>/dev/null; then
+  cat > /etc/nginx/sites-available/yogdu-referral << 'NGINXEOF'
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+}
+NGINXEOF
+  rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+  ln -sf /etc/nginx/sites-available/yogdu-referral /etc/nginx/sites-enabled/yogdu-referral
+  nginx -t 2>/dev/null && (service nginx reload 2>/dev/null || nginx -s reload 2>/dev/null) && echo "  Nginx configured." || echo "  WARNING: Nginx config failed."
+fi
 
 # Show PM2 status
 echo ""

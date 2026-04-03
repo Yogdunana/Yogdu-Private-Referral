@@ -1,68 +1,48 @@
 #!/bin/bash
 set -e
 
-echo "=== 1. 检查数据库用户 ==="
+echo "=== 1. 重置登录锁定 ==="
 cd /opt/yogdu-referral
 export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
+
 npx prisma db execute --stdin << 'SQL'
-SELECT email, name, role, "isActive", "loginAttempts", "lockedUntil" FROM users;
+UPDATE users SET "loginAttempts" = 0, "lockedUntil" = NULL;
 SQL
-echo ""
+echo "  锁定已重置"
 
-echo "=== 2. 重置登录锁定 ==="
+echo "=== 2. 运行 seed ==="
+npx prisma db seed 2>&1 | tail -10
+
+echo "=== 3. 查看用户 ==="
 npx prisma db execute --stdin << 'SQL'
-UPDATE users SET "loginAttempts" = 0, "lockedUntil" = NULL WHERE "loginAttempts" > 0 OR "lockedUntil" IS NOT NULL;
+SELECT email, role, "isActive", "loginAttempts" FROM users;
 SQL
-echo "  登录锁定已重置"
-echo ""
 
-echo "=== 3. 重新运行 seed ==="
-npx prisma db seed 2>&1 | tail -10 || echo "Seed 可能已存在（upsert）"
-echo ""
-
-echo "=== 4. 验证用户 ==="
-npx prisma db execute --stdin << 'SQL'
-SELECT email, name, role, "isActive" FROM users;
-SQL
-echo ""
-
-echo "=== 5. 测试登录 ==="
-TOKEN=$(curl -s -c - -X POST http://localhost:3002/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@youdoo.com","password":"admin123456"}' 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'success={d.get(\"success\")}, token={bool(d.get(\"token\"))}, error={d.get(\"error\",\"none\")}')
-except Exception as e:
-    print(f'Error: {e}')
-" 2>/dev/null)
-echo ""
-
-echo "=== 6. 测试投稿方登录 ==="
+echo "=== 4. 测试管理员登录 ==="
 curl -s -X POST http://localhost:3002/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"contributor@test.com","password":"contributor123"}' 2>/dev/null | python3 -c "
+  -d '{"email":"admin@youdoo.com","password":"admin123456"}' | python3 -c "
 import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'contributor: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
-except Exception as e:
-    print(f'Error: {e}')
-" 2>/dev/null
-echo ""
+d=json.load(sys.stdin)
+print(f'admin: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+"
 
-echo "=== 7. 测试普通用户登录 ==="
+echo "=== 5. 测试投稿方登录 ==="
 curl -s -X POST http://localhost:3002/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@test.com","password":"user123456"}' 2>/dev/null | python3 -c "
+  -d '{"email":"contributor@test.com","password":"contributor123"}' | python3 -c "
 import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'user: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
-except Exception as e:
-    print(f'Error: {e}')
-" 2>/dev/null
-echo ""
+d=json.load(sys.stdin)
+print(f'contributor: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+"
+
+echo "=== 6. 测试用户登录 ==="
+curl -s -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@test.com","password":"user123456"}' | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(f'user: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+"
 
 echo "=== DONE ==="

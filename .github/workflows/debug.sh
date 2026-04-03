@@ -1,43 +1,67 @@
 #!/bin/bash
 set -e
 
-echo "=== 1. 检查证书 ==="
-ls -la /etc/letsencrypt/live/maixuan.yogdunana.com/ 2>/dev/null
-openssl x509 -in /etc/letsencrypt/live/maixuan.yogdunana.com/fullchain.pem -noout -subject -dates 2>/dev/null || echo "证书无效"
+echo "=== 1. 检查数据库用户 ==="
+cd /opt/yogdu-referral
+export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
+npx prisma db execute --stdin << 'SQL'
+SELECT email, name, role, "isActive", "loginAttempts", "lockedUntil" FROM users;
+SQL
 echo ""
 
-echo "=== 2. 重启Nginx ==="
-service nginx stop 2>/dev/null || true
-sleep 1
-service nginx start 2>/dev/null || true
-sleep 2
-echo "Nginx restarted"
+echo "=== 2. 重置登录锁定 ==="
+npx prisma db execute --stdin << 'SQL'
+UPDATE users SET "loginAttempts" = 0, "lockedUntil" = NULL WHERE "loginAttempts" > 0 OR "lockedUntil" IS NOT NULL;
+SQL
+echo "  登录锁定已重置"
 echo ""
 
-echo "=== 3. 检查端口 ==="
-ss -tlnp | grep -E "(:80 |:443 |:3002)"
+echo "=== 3. 重新运行 seed ==="
+npx prisma db seed 2>&1 | tail -10 || echo "Seed 可能已存在（upsert）"
 echo ""
 
-echo "=== 4. SSL测试(带Host) ==="
-echo | openssl s_client -connect localhost:443 -servername maixuan.yogdunana.com 2>&1 | grep -E "(Verify|subject|issuer|error|errno|alert)" | head -5
+echo "=== 4. 验证用户 ==="
+npx prisma db execute --stdin << 'SQL'
+SELECT email, name, role, "isActive" FROM users;
+SQL
 echo ""
 
-echo "=== 5. HTTP测试(带Host) ==="
-curl -s -H "Host: maixuan.yogdunana.com" http://localhost/ 2>/dev/null | grep -o '<title>[^<]*</title>' || echo "HTTP无标题"
-echo ""
-
-echo "=== 6. HTTPS测试(带Host) ==="
-curl -sk -H "Host: maixuan.yogdunana.com" https://localhost/ 2>/dev/null | grep -o '<title>[^<]*</title>' || echo "HTTPS无标题"
-echo ""
-
-echo "=== 7. API测试 ==="
-curl -sk -H "Host: maixuan.yogdunana.com" https://localhost/api/jobs 2>/dev/null | python3 -c "
+echo "=== 5. 测试登录 ==="
+TOKEN=$(curl -s -c - -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@youdoo.com","password":"admin123456"}' 2>/dev/null | python3 -c "
 import sys,json
 try:
     d=json.load(sys.stdin)
-    print(f'API: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
-except:
-    print('API failed')
+    print(f'success={d.get(\"success\")}, token={bool(d.get(\"token\"))}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
+" 2>/dev/null)
+echo ""
+
+echo "=== 6. 测试投稿方登录 ==="
+curl -s -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"contributor@test.com","password":"contributor123"}' 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'contributor: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
+" 2>/dev/null
+echo ""
+
+echo "=== 7. 测试普通用户登录 ==="
+curl -s -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@test.com","password":"user123456"}' 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'user: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
 " 2>/dev/null
 echo ""
 

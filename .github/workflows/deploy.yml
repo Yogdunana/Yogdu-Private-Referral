@@ -79,18 +79,16 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
+
           echo "=== Uploading deploy script to server ==="
-          sshpass -p "${SERVER_PASSWORD}" scp \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
+          sshpass -p "${SERVER_PASSWORD}" scp ${SSH_OPTS} \
             -P "${SERVER_PORT}" \
             .github/workflows/deploy.sh \
             "${SERVER_USER}@${SERVER_HOST}:/tmp/deploy.sh"
 
           echo "=== Executing deploy script on server ==="
-          sshpass -p "${SERVER_PASSWORD}" ssh \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
+          sshpass -p "${SERVER_PASSWORD}" ssh ${SSH_OPTS} \
             -p "${SERVER_PORT}" \
             "${SERVER_USER}@${SERVER_HOST}" \
             "chmod +x /tmp/deploy.sh && \
@@ -112,10 +110,9 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
           echo "=== Running health check ==="
-          sshpass -p "${SERVER_PASSWORD}" ssh \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
+          sshpass -p "${SERVER_PASSWORD}" ssh ${SSH_OPTS} \
             -p "${SERVER_PORT}" \
             "${SERVER_USER}@${SERVER_HOST}" \
             "curl -sf http://localhost:3000 > /dev/null && echo 'Health check PASSED' || echo 'Health check FAILED'"

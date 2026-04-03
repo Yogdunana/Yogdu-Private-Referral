@@ -1,0 +1,33 @@
+name: Debug Server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    name: Debug Server Environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Run debug script on server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
+          sshpass -p "${SERVER_PASSWORD}" scp ${SSH_OPTS} \
+            -P "${SERVER_PORT}" \
+            .github/workflows/debug.sh \
+            "${SERVER_USER}@${SERVER_HOST}:/tmp/debug.sh"
+          sshpass -p "${SERVER_PASSWORD}" ssh ${SSH_OPTS} \
+            -p "${SERVER_PORT}" \
+            "${SERVER_USER}@${SERVER_HOST}" \
+            "bash /tmp/debug.sh"

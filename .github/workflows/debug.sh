@@ -1,23 +1,95 @@
 #!/bin/bash
-echo "=== PM2 logs ==="
-pm2 logs yogdu-referral --lines 20 --nostream 2>/dev/null
+set -e
+
+echo "=== Step 1: Create .env ==="
+cat > /opt/yogdu-referral/.env << 'ENVEOF'
+DATABASE_URL="postgresql://yogdu:yogdu_referral_2024@127.0.0.1:5433/yogdu_referral?schema=public"
+JWT_SECRET="yogdu-referral-prod-jwt-secret-change-me-2024"
+ARK_API_KEY="fe737e3b-1789-4d6c-8123-61392466c858"
+SMTP_HOST="smtp.feishu.cn"
+SMTP_PORT="465"
+SMTP_USER="noreply@yogdunana.com"
+SMTP_PASS="jBMvnnpHL5ZLfUYj"
+EMAIL_FROM="noreply@yogdunana.com"
+NEXT_PUBLIC_APP_URL="http://101.237.129.33"
+NODE_ENV="production"
+PORT=3002
+ENVEOF
+chmod 600 /opt/yogdu-referral/.env
+echo "  .env created."
+cat /opt/yogdu-referral/.env | head -3
 echo ""
 
-echo "=== Port check ==="
-ss -tlnp | grep -E "(3000|3001|3002|80)"
+echo "=== Step 2: Create start.sh ==="
+cat > /opt/yogdu-referral/start.sh << 'STARTEOF'
+#!/bin/bash
+set -a
+source /opt/yogdu-referral/.env
+set +a
+exec npx next start -p 3002
+STARTEOF
+chmod +x /opt/yogdu-referral/start.sh
+echo "  start.sh created."
 echo ""
 
-echo "=== Direct test on 3002 ==="
-curl -s http://localhost:3002/ 2>/dev/null | head -5 || echo "3002 not responding"
+echo "=== Step 3: Ensure PostgreSQL is running ==="
+pg_ctlcluster 14 main start 2>/dev/null || true
+sleep 1
+pg_isready -p 5433 2>/dev/null && echo "PostgreSQL ready on 5433" || echo "PostgreSQL NOT ready!"
 echo ""
 
-echo "=== .env file ==="
-cat /opt/yogdu-referral/.env
+echo "=== Step 4: Prisma generate + db push ==="
+cd /opt/yogdu-referral
+npx prisma generate 2>&1 | tail -3
+npx prisma db push 2>&1 | tail -5
 echo ""
 
-echo "=== start.sh ==="
-cat /opt/yogdu-referral/start.sh
+echo "=== Step 5: Seed ==="
+npx prisma db seed 2>&1 | tail -5 || true
 echo ""
 
-echo "=== pm2 env ==="
-pm2 env 40 2>/dev/null | grep -E "(DATABASE|PORT|NODE)" || pm2 env yogdu-referral 2>/dev/null | grep -E "(DATABASE|PORT|NODE)" || echo "Cannot get pm2 env"
+echo "=== Step 6: Restart app ==="
+pm2 stop yogdu-referral 2>/dev/null || true
+pm2 delete yogdu-referral 2>/dev/null || true
+pm2 start /opt/yogdu-referral/start.sh --name "yogdu-referral"
+pm2 save 2>/dev/null || true
+echo ""
+
+echo "=== Step 7: Wait and verify ==="
+sleep 15
+pm2 list 2>/dev/null
+echo ""
+echo "Testing API..."
+curl -s http://localhost:3002/api/jobs 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'Jobs: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
+" 2>/dev/null || echo "API failed"
+echo ""
+echo "Testing login..."
+curl -s -X POST http://localhost:3002/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@youdoo.com","password":"admin123456"}' 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'Login: success={d.get(\"success\")}, has_token={bool(d.get(\"token\"))}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
+" 2>/dev/null || echo "Login failed"
+echo ""
+echo "Testing via Nginx (port 80)..."
+curl -s http://localhost/api/jobs 2>/dev/null | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(f'Nginx->API: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}, error={d.get(\"error\",\"none\")}')
+except Exception as e:
+    print(f'Error: {e}')
+" 2>/dev/null || echo "Nginx API failed"
+
+echo ""
+echo "=== DONE ==="

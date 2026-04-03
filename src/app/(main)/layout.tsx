@@ -252,6 +252,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <main className="flex-1">
         {children}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t py-6 mt-auto">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} <a href="https://github.com/Yogdunana" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Yogdunana-悠渡</a>. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }

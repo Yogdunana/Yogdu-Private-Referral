@@ -35,7 +35,11 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
       {/* Footer */}
       <p className="mt-8 text-xs text-muted-foreground/60">
-        &copy; {new Date().getFullYear()} 悠渡脉选 版权所有
+        &copy; {new Date().getFullYear()}{' '}
+        <a href="https://github.com/Yogdunana" target="_blank" rel="noopener noreferrer" className="hover:text-muted-foreground transition-colors">
+          Yogdunana-悠渡
+        </a>{' '}
+        版权所有
       </p>
     </div>
   );

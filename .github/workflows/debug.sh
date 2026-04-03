@@ -1,75 +1,39 @@
 #!/bin/bash
 set -e
-
 cd /opt/yogdu-referral
 export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
 
-echo "=== 1. 查看当前用户 ==="
+echo "=== 1. 数据库中的岗位数 ==="
 npx prisma db execute --schema /opt/yogdu-referral/prisma/schema.prisma --stdin << 'SQL'
-SELECT email, name, role, "isActive", "loginAttempts", substring(password, 1, 20) as pwd_prefix FROM users;
+SELECT count(*) as total, status FROM jobs GROUP BY status;
 SQL
 
-echo "=== 2. 用 Node.js 重置密码 ==="
-node -e "
-const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-async function reset() {
-  const adminPwd = await bcrypt.hash('admin123456', 10);
-  const contributorPwd = await bcrypt.hash('contributor123', 10);
-  const userPwd = await bcrypt.hash('user123456', 10);
+echo "=== 2. 数据库中的用户数 ==="
+npx prisma db execute --schema /opt/yogdu-referral/prisma/schema.prisma --stdin << 'SQL'
+SELECT count(*) FROM users;
+SQL
 
-  await prisma.user.upsert({
-    where: { email: 'admin@youdoo.com' },
-    update: { password: adminPwd, role: 'ADMIN', isActive: true, loginAttempts: 0, lockedUntil: null },
-    create: { email: 'admin@youdoo.com', password: adminPwd, name: '系统管理员', role: 'ADMIN' }
-  });
-  console.log('admin@youdoo.com 密码已重置');
+echo "=== 3. 邀请码 ==="
+npx prisma db execute --schema /opt/yogdu-referral/prisma/schema.prisma --stdin << 'SQL'
+SELECT code, "maxUses", "usedCount", "isActive" FROM invite_codes;
+SQL
 
-  await prisma.user.upsert({
-    where: { email: 'contributor@test.com' },
-    update: { password: contributorPwd, role: 'CONTRIBUTOR', isActive: true, loginAttempts: 0, lockedUntil: null },
-    create: { email: 'contributor@test.com', password: contributorPwd, name: '测试投稿方', role: 'CONTRIBUTOR' }
-  });
-  console.log('contributor@test.com 密码已重置');
-
-  await prisma.user.upsert({
-    where: { email: 'user@test.com' },
-    update: { password: userPwd, role: 'USER', isActive: true, loginAttempts: 0, lockedUntil: null },
-    create: { email: 'user@test.com', password: userPwd, name: '测试用户', role: 'USER' }
-  });
-  console.log('user@test.com 密码已重置');
-
-  await prisma.\$disconnect();
-}
-reset().catch(e => { console.error(e); process.exit(1); });
-"
-
-echo "=== 3. 测试管理员登录 ==="
-curl -s -X POST http://localhost:3002/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@youdoo.com","password":"admin123456"}' | python3 -c "
+echo "=== 4. API测试 - 前台岗位列表 ==="
+curl -s http://localhost:3002/api/jobs | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
-print(f'admin: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
+print(f'success={d.get(\"success\")}, total={d.get(\"data\",{}).get(\"total\",0)}, jobs_count={len(d.get(\"data\",{}).get(\"data\",[]))}')
+for j in d.get('data',{}).get('data',[])[:3]:
+    print(f'  - {j.get(\"title\",\"?\")} [{j.get(\"status\",\"?\")}]')
 "
 
-echo "=== 4. 测试投稿方登录 ==="
-curl -s -X POST http://localhost:3002/api/auth/login \
+echo "=== 5. API测试 - 管理员岗位列表 ==="
+TOKEN=$(curl -s -c - -X POST http://localhost:3002/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"contributor@test.com","password":"contributor123"}' | python3 -c "
+  -d '{"email":"admin@youdoo.com","password":"admin123456"}' 2>/dev/null | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
-print(f'contributor: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
-"
-
-echo "=== 5. 测试用户登录 ==="
-curl -s -X POST http://localhost:3002/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@test.com","password":"user123456"}' | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-print(f'user: success={d.get(\"success\")}, error={d.get(\"error\",\"none\")}')
-"
+print(d.get('data',{}).get('token','') if d.get('success') else '')
+" 2>/dev/null)
 
 echo "=== DONE ==="

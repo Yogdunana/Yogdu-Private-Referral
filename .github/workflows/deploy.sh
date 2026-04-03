@@ -270,7 +270,7 @@ cd "$(dirname "$0")"
 set -a
 source "$(dirname "$0")/.env"
 set +a
-exec node_modules/.bin/next start -p "${PORT:-3002}"
+exec node_modules/.bin/next start -p 3002
 STARTEOF
 chmod +x "${APP_DIR}/start.sh"
 

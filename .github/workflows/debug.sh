@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "=== 1. 重置登录锁定 ==="
 cd /opt/yogdu-referral
 export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
 
-npx prisma db execute --stdin << 'SQL'
+echo "=== 1. 重置登录锁定 ==="
+npx prisma db execute --schema /opt/yogdu-referral/prisma/schema.prisma --stdin << 'SQL'
 UPDATE users SET "loginAttempts" = 0, "lockedUntil" = NULL;
 SQL
 echo "  锁定已重置"
@@ -14,7 +14,7 @@ echo "=== 2. 运行 seed ==="
 npx prisma db seed 2>&1 | tail -10
 
 echo "=== 3. 查看用户 ==="
-npx prisma db execute --stdin << 'SQL'
+npx prisma db execute --schema /opt/yogdu-referral/prisma/schema.prisma --stdin << 'SQL'
 SELECT email, role, "isActive", "loginAttempts" FROM users;
 SQL
 

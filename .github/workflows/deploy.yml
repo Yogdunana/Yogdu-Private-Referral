@@ -1,0 +1,95 @@
+name: CD - Deploy to Server
+
+on:
+  push:
+    branches: [main]
+    # Only deploy on actual push to main, NOT on pull requests
+
+jobs:
+  # -------------------------------------------------------
+  # Step 1: Run CI checks (lint + build) before deploying
+  # -------------------------------------------------------
+  ci-check:
+    name: CI Check
+    uses: ./.github/workflows/ci.yml
+    # Reuse the CI workflow as a prerequisite
+
+  # -------------------------------------------------------
+  # Step 2: Deploy to server via SSH
+  # -------------------------------------------------------
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: ci-check
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Copy deploy script to server and execute
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+        run: |
+          echo "=== Uploading deploy script to server ==="
+          sshpass -p "${SERVER_PASSWORD}" scp \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -P "${SERVER_PORT}" \
+            .github/workflows/deploy.sh \
+            "${SERVER_USER}@${SERVER_HOST}:/tmp/deploy.sh"
+
+          echo "=== Executing deploy script on server ==="
+          sshpass -p "${SERVER_PASSWORD}" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p "${SERVER_PORT}" \
+            "${SERVER_USER}@${SERVER_HOST}" \
+            "chmod +x /tmp/deploy.sh && \
+             DATABASE_URL=\"${DATABASE_URL}\" \
+             JWT_SECRET=\"${JWT_SECRET}\" \
+             ARK_API_KEY=\"${ARK_API_KEY}\" \
+             SMTP_HOST=\"${SMTP_HOST}\" \
+             SMTP_PORT=\"${SMTP_PORT}\" \
+             SMTP_USER=\"${SMTP_USER}\" \
+             SMTP_PASS=\"${SMTP_PASS}\" \
+             EMAIL_FROM=\"${EMAIL_FROM}\" \
+             NEXT_PUBLIC_APP_URL=\"${NEXT_PUBLIC_APP_URL}\" \
+             bash /tmp/deploy.sh"
+
+      - name: Health check
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          echo "=== Running health check ==="
+          sshpass -p "${SERVER_PASSWORD}" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p "${SERVER_PORT}" \
+            "${SERVER_USER}@${SERVER_HOST}" \
+            "curl -sf http://localhost:3000 > /dev/null && echo 'Health check PASSED' || echo 'Health check FAILED'"
+
+          echo "=== Deployment finished ==="

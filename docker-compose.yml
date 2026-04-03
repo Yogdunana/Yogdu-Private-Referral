@@ -1,0 +1,65 @@
+# ============================================================
+# Yogdu Private Referral - Docker Compose
+# For potential future containerized deployment.
+# ============================================================
+# Usage: docker-compose up -d
+# Requires a .env file in the same directory with all the
+# environment variables listed below.
+# ============================================================
+
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yogdu-referral-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/yogdu_referral}
+      - JWT_SECRET=${JWT_SECRET}
+      - ARK_API_KEY=${ARK_API_KEY}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+      - NODE_ENV=production
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - yogdu-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: yogdu-referral-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-yogdu_referral}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-yogdu_referral}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yogdu-network
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  yogdu-network:
+    driver: bridge

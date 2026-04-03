@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ 枚举 ============
+
+enum Role {
+  ADMIN
+  CONTRIBUTOR
+  USER
+}
+
+enum JobStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  TAKEN_DOWN
+}
+
+enum JobType {
+  DAILY_INTERNSHIP
+  SUMMER_INTERNSHIP
+  RESEARCH_INTERNSHIP
+  FULL_TIME
+  OTHER
+}
+
+enum WorkMode {
+  REMOTE
+  ONSITE
+  HYBRID
+}
+
+enum EmailType {
+  NEW_SUBMISSION
+  REVIEW_APPROVED
+  REVIEW_REJECTED
+  JOB_UPDATED
+  JOB_EXPIRING
+  JOB_EXPIRED
+  SYSTEM_NOTICE
+  REGISTRATION
+  FORGOT_PASSWORD
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_REGISTER
+  USER_LOGOUT
+  JOB_SUBMIT
+  JOB_APPROVE
+  JOB_REJECT
+  JOB_EDIT
+  JOB_TAKE_DOWN
+  JOB_RESTORE
+  JOB_AUTO_EXPIRE
+  INVITE_CODE_CREATE
+  INVITE_CODE_DISABLE
+  USER_DISABLE
+  USER_ENABLE
+  EMAIL_SEND
+}
+
+// ============ 模型 ============
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  password         String
+  name             String
+  role             Role      @default(USER)
+  isActive         Boolean   @default(true)
+  loginAttempts    Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  resetCode        String?
+  resetCodeExpiresAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  jobs        Job[]
+  favorites   Favorite[]
+  inviteCodes InviteCode[] @relation("InviteCodeCreator")
+  auditLogs   AuditLog[]
+  emailLogs   EmailLog[]
+
+  @@map("users")
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  title         String
+  type          JobType
+  location      String
+  content       String
+  requirements  String
+  researchField String?
+  businessTrack String?
+  bonusPoints   String?
+  workMode      WorkMode   @default(ONSITE)
+  contactEmail  String
+  emailFormat   String
+  deadline      DateTime
+  tags          String[]
+  status        JobStatus  @default(PENDING)
+  rejectReason  String?
+  viewCount     Int        @default(0)
+  favoriteCount Int        @default(0)
+  expiredAt     DateTime?
+
+  contributorId String
+  contributor   User       @relation(fields: [contributorId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  favorites Favorite[]
+
+  @@index([status])
+  @@index([deadline])
+  @@index([contributorId])
+  @@index([type])
+  @@index([location])
+  @@map("jobs")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  createdBy String
+  creator   User      @relation("InviteCodeCreator", fields: [createdBy], references: [id])
+  maxUses   Int       @default(1)
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@map("invite_codes")
+}
+
+model EmailLog {
+  id        String    @id @default(cuid())
+  to        String
+  subject   String
+  type      EmailType
+  status    String
+  error     String?
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("email_logs")
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  action    AuditAction
+  detail    String
+  ipAddress String?
+  createdAt DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

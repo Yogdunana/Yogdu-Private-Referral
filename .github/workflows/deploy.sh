@@ -21,7 +21,7 @@ APP_NAME="yogdu-referral"
 APP_PORT=3000
 NODE_MAJOR=20
 DB_NAME="yogdu_referral"
-REPO_URL="https://github.com/Yogdu-Private-Referral/yogdu-referral.git"
+REPO_URL="https://github.com/Yogdunana/Yogdu-Private-Referral.git"
 REPO_BRANCH="main"
 
 # --- Validate required environment variables ---

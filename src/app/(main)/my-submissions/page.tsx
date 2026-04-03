@@ -173,7 +173,7 @@ export default function MySubmissionsPage() {
       ) : submissions.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg">暂无投稿记录</p>
-          <p className="text-sm mt-1">点击上方"投稿"按钮提交您的第一个职位信息</p>
+          <p className="text-sm mt-1">点击上方&ldquo;投稿&rdquo;按钮提交您的第一个职位信息</p>
         </div>
       ) : (
         <>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,7 +63,6 @@ const emptyFormData: JobFormData = {
 
 export default function JobForm({ initialData, onSubmit, mode }: JobFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [formData, setFormData] = useState<JobFormData>({
     ...emptyFormData,
     ...initialData,

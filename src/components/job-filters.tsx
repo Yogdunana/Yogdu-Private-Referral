@@ -70,6 +70,7 @@ export default function JobFilters({ filters, onFilterChange }: JobFiltersProps)
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate data-fetching-on-mount pattern
     fetchOptions();
   }, [fetchOptions]);
 

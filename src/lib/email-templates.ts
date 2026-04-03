@@ -58,7 +58,7 @@ function wrapHtml(bodyContent: string): string {
 const templates: Record<EmailType, EmailTemplate> = {
   [EmailType.REGISTRATION]: {
     subject: '欢迎注册悠渡脉选',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>欢迎加入悠渡脉选！</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>恭喜您成功注册「悠渡脉选」平台！这里汇集了丰富的内推信息，帮助您找到理想的工作机会。</p>
@@ -72,7 +72,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.NEW_SUBMISSION]: {
     subject: '内推信息提交成功',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>提交成功</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>您提交的内推信息已成功记录，正在等待管理员审核。</p>
@@ -87,7 +87,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.REVIEW_APPROVED]: {
     subject: '内推信息审核通过',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>审核通过</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>恭喜！您提交的内推信息已通过审核，现已正式发布。</p>
@@ -102,7 +102,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.REVIEW_REJECTED]: {
     subject: '内推信息审核未通过',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>审核未通过</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>很遗憾，您提交的内推信息未通过审核。</p>
@@ -117,7 +117,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.JOB_UPDATED]: {
     subject: '收藏的岗位信息已更新',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>岗位信息更新通知</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>您收藏的岗位信息已被贡献者更新，请查看最新内容。</p>
@@ -132,7 +132,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.JOB_EXPIRING]: {
     subject: '收藏的岗位即将截止',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>岗位即将截止提醒</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>您收藏的岗位即将到达申请截止日期，请尽快投递！</p>
@@ -148,7 +148,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.JOB_EXPIRED]: {
     subject: '收藏的岗位已截止',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>岗位已截止通知</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>您收藏的岗位已到达截止日期，该岗位现已标记为已过期。</p>
@@ -163,7 +163,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.SYSTEM_NOTICE]: {
     subject: '悠渡脉选系统通知',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>系统通知</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <div class="highlight">
@@ -176,7 +176,7 @@ const templates: Record<EmailType, EmailTemplate> = {
 
   [EmailType.FORGOT_PASSWORD]: {
     subject: '悠渡脉选 - 密码重置',
-    getHtml: (vars) => wrapHtml(`
+    getHtml: (_vars) => wrapHtml(`
       <h2>密码重置请求</h2>
       <p>您好，<strong>{{name}}</strong>：</p>
       <p>我们收到了您的密码重置请求。请使用以下验证码完成密码重置：</p>
@@ -195,7 +195,7 @@ export function getTemplate(type: EmailType): EmailTemplate {
   if (!template) {
     return {
       subject: '悠渡脉选通知',
-      getHtml: (vars) => wrapHtml(`
+      getHtml: (_vars) => wrapHtml(`
         <h2>通知</h2>
         <p>{{content}}</p>
       `),

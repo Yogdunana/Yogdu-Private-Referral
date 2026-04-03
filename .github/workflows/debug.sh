@@ -4,20 +4,20 @@ set -e
 echo "=== 1. 磁盘清理 ==="
 rm -rf /opt/yogdu-referral/.next/cache 2>/dev/null
 rm -rf /tmp/* 2>/dev/null
-rm -rf /var/cache/apt/archives/*.deb 2>/dev/null
 npm cache clean --force 2>/dev/null || true
 docker system prune -af 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
-rm -rf /var/log/*.gz 2>/dev/null
-rm -rf /opt/yogdu-referral/node_modules/.cache 2>/dev/null
+rm -rf /var/log/*.gz /var/log/nginx/*.gz 2>/dev/null
 pm2 flush 2>/dev/null || true
 echo "磁盘可用: $(df -h / | tail -1 | awk '{print $4}')"
 
-echo "=== 2. 重建数据 ==="
 cd /opt/yogdu-referral
 DB_URL=$(grep '^DATABASE_URL=' /opt/yogdu-referral/.env | cut -d'"' -f2)
-echo "DB: ${DB_URL:0:30}..."
 
+echo "=== 2. Prisma generate ==="
+DATABASE_URL="$DB_URL" npx prisma generate 2>&1 | tail -3
+
+echo "=== 3. 重建数据 ==="
 DATABASE_URL="$DB_URL" node -e "
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
@@ -61,7 +61,7 @@ async function reset() {
 reset().catch(e=>{console.error(e);process.exit(1);});
 "
 
-echo "=== 3. API测试 ==="
+echo "=== 4. API测试 ==="
 curl -s http://localhost:3002/api/jobs | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
@@ -70,7 +70,7 @@ for j in d.get('data',{}).get('data',[])[:3]:
     print(f'  - {j.get(\"title\")} [{j.get(\"status\")}]')
 "
 
-echo "=== 4. 登录测试 ==="
+echo "=== 5. 登录测试 ==="
 curl -s -X POST http://localhost:3002/api/auth/login -H "Content-Type: application/json" -d '{"email":"admin@youdoo.com","password":"admin123456"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print(f'admin: success={d.get(\"success\")}')"
 
 echo "=== DONE ==="

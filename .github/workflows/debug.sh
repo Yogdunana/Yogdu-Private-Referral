@@ -1,14 +1,38 @@
 #!/bin/bash
 set -e
 
-echo "=== Step 1: Start PostgreSQL 14 ==="
-service postgresql start 2>/dev/null || systemctl start postgresql 2>/dev/null || true
+echo "=== Step 1: Configure PostgreSQL for TCP connections ==="
+# Find the PostgreSQL config directory
+PG_CONF_DIR="/etc/postgresql/14/main"
+PG_HBA="$PG_CONF_DIR/pg_hba.conf"
+PG_CONF="$PG_CONF_DIR/postgresql.conf"
+
+# Enable TCP listening
+if ! grep -q "^listen_addresses" "$PG_CONF" 2>/dev/null; then
+  echo "listen_addresses = '*'" >> "$PG_CONF"
+else
+  sed -i "s/^#*listen_addresses.*/listen_addresses = '*'/" "$PG_CONF"
+fi
+echo "  listen_addresses set to '*'"
+
+# Allow password authentication for local TCP connections
+if ! grep -q "host.*all.*all.*127.0.0.1.*md5" "$PG_HBA" 2>/dev/null; then
+  echo "host  all  all  127.0.0.1/32  md5" >> "$PG_HBA"
+fi
+if ! grep -q "host.*all.*all.*::1.*md5" "$PG_HBA" 2>/dev/null; then
+  echo "host  all  all  ::1/128  md5" >> "$PG_HBA"
+fi
+echo "  pg_hba.conf updated for TCP connections"
+
+# Restart PostgreSQL
+service postgresql restart 2>/dev/null || systemctl restart postgresql 2>/dev/null || true
 sleep 2
-pg_isready 2>/dev/null && echo "PostgreSQL is ready." || echo "PostgreSQL failed to start!"
+
+echo "=== Step 2: Verify PostgreSQL is listening on TCP ==="
+ss -tlnp | grep 5432 && echo "PostgreSQL is listening on TCP 5432" || echo "WARNING: PostgreSQL not on TCP 5432"
 echo ""
 
-echo "=== Step 2: Create database and user ==="
-# Create user and database using postgres superuser
+echo "=== Step 3: Create database and user ==="
 su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='yogdu'\"" 2>/dev/null | grep -q 1 || \
   su - postgres -c "psql -c \"CREATE USER yogdu WITH PASSWORD 'yogdu_referral_2024';\"" 2>&1
 echo "User 'yogdu' ready."
@@ -17,18 +41,17 @@ su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='yogdu_refer
   su - postgres -c "psql -c \"CREATE DATABASE yogdu_referral OWNER yogdu;\"" 2>&1
 echo "Database 'yogdu_referral' ready."
 
-echo "=== Step 3: Grant permissions ==="
 su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE yogdu_referral TO yogdu;\"" 2>&1
 su - postgres -c "psql -d yogdu_referral -c \"GRANT ALL ON SCHEMA public TO yogdu;\"" 2>&1
 echo "Permissions granted."
 
-echo "=== Step 4: Test connection ==="
-PGPASSWORD='yogdu_referral_2024' psql -h localhost -U yogdu -d yogdu_referral -c "SELECT current_database(), current_user;" 2>&1
+echo "=== Step 4: Test TCP connection ==="
+PGPASSWORD='yogdu_referral_2024' psql -h 127.0.0.1 -U yogdu -d yogdu_referral -c "SELECT current_database(), current_user;" 2>&1
 echo ""
 
 echo "=== Step 5: Update .env ==="
 cat > /opt/yogdu-referral/.env << 'ENVEOF'
-DATABASE_URL="postgresql://yogdu:yogdu_referral_2024@localhost:5432/yogdu_referral?schema=public"
+DATABASE_URL="postgresql://yogdu:yogdu_referral_2024@127.0.0.1:5432/yogdu_referral?schema=public"
 JWT_SECRET="yogdu-referral-prod-jwt-secret-change-me-2024"
 ARK_API_KEY="fe737e3b-1789-4d6c-8123-61392466c858"
 SMTP_HOST="smtp.feishu.cn"

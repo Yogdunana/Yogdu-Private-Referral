@@ -1,15 +1,12 @@
 #!/bin/bash
-echo "=== Nginx ==="
-which nginx 2>/dev/null && nginx -v 2>&1 || echo "Nginx not installed"
+echo "=== Nginx sites ==="
+ls /etc/nginx/sites-enabled/ 2>/dev/null
 echo ""
-
-echo "=== Check if nginx is running ==="
-service nginx status 2>/dev/null || systemctl status nginx 2>/dev/null || echo "Nginx not running"
+cat /etc/nginx/sites-enabled/* 2>/dev/null
 echo ""
-
-echo "=== Check port 80/443 ==="
-ss -tlnp | grep -E "(:80 |:443 )" || echo "No web server on 80/443"
+echo "=== Nginx conf.d ==="
+ls /etc/nginx/conf.d/ 2>/dev/null
+cat /etc/nginx/conf.d/*.conf 2>/dev/null
 echo ""
-
-echo "=== Check if anything serves on port 80 ==="
-curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null || echo "Nothing on port 80"
+echo "=== Main nginx.conf (last 20 lines) ==="
+tail -20 /etc/nginx/nginx.conf 2>/dev/null

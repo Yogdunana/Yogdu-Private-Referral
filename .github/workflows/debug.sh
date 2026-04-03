@@ -1,32 +1,24 @@
 #!/bin/bash
-echo "=== 测试外部访问 ==="
-curl -s --connect-timeout 5 "http://maixuan.yogdunana.com/api/jobs" 2>&1 | head -100
+echo "=== PM2 ==="
+pm2 list 2>/dev/null
 echo ""
-echo "=== 测试 IP 直连 ==="
-curl -s --connect-timeout 5 "http://101.237.129.33/api/jobs" -H "Host: maixuan.yogdunana.com" 2>&1 | head -100
+echo "=== PM2 Error Logs ==="
+pm2 logs yogdu-referral --err --lines 20 --nostream 2>/dev/null
 echo ""
-echo "=== 本地测试 ==="
-curl -s http://localhost:3002/api/jobs 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'Local: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
-except:
-    print('Local: failed')
-"
+echo "=== PM2 Out Logs ==="
+pm2 logs yogdu-referral --out --lines 10 --nostream 2>/dev/null
 echo ""
-echo "=== Nginx + Host header ==="
-curl -s http://localhost/api/jobs -H "Host: maixuan.yogdunana.com" 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'Nginx: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
-except:
-    print('Nginx: failed')
-"
+echo "=== Port 3002 ==="
+ss -tlnp | grep 3002 || echo "NOT LISTENING ON 3002"
 echo ""
-echo "=== 防火墙 ==="
-ufw status 2>/dev/null || echo "ufw not active"
+echo "=== .env ==="
+cat /opt/yogdu-referral/.env 2>/dev/null | head -5
 echo ""
-echo "=== iptables ==="
-iptables -L INPUT -n 2>/dev/null | head -10
+echo "=== start.sh ==="
+cat /opt/yogdu-referral/start.sh 2>/dev/null
+echo ""
+echo "=== .next exists? ==="
+ls -la /opt/yogdu-referral/.next/BUILD_ID 2>/dev/null || echo "NO .next BUILD_ID"
+echo ""
+echo "=== Direct test ==="
+curl -s http://localhost:3002/ 2>/dev/null | head -5 || echo "3002 no response"

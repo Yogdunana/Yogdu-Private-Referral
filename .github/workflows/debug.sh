@@ -1,39 +1,23 @@
 #!/bin/bash
-set -e
-
-echo "=== 1. Stop PM2 ==="
-pm2 stop yogdu-referral 2>/dev/null || true
-pm2 delete yogdu-referral 2>/dev/null || true
-fuser -k 3002/tcp 2>/dev/null || true
-sleep 2
-
-echo "=== 2. Clean .next cache ==="
-rm -rf /opt/yogdu-referral/.next
-echo "  .next deleted"
-
-echo "=== 3. Rebuild ==="
+echo "=== start.sh content ==="
+cat /opt/yogdu-referral/start.sh
+echo ""
+echo "=== PM2 logs ==="
+pm2 logs yogdu-referral --lines 15 --nostream 2>/dev/null
+echo ""
+echo "=== Try running next directly ==="
 cd /opt/yogdu-referral
 export $(grep -v '^#' /opt/yogdu-referral/.env | xargs) 2>/dev/null || true
-npm run build 2>&1 | tail -5
-echo "  Build done"
-
-echo "=== 4. Start PM2 ==="
-pm2 start /opt/yogdu-referral/start.sh --name "yogdu-referral"
-pm2 save 2>/dev/null || true
+echo "PORT=$PORT"
+ls -la node_modules/.bin/next 2>/dev/null
+# Test what port next actually uses
+timeout 15 node_modules/.bin/next start -p 3002 2>&1 &
+NEXT_PID=$!
 sleep 10
-
-echo "=== 5. Verify ==="
-ss -tlnp | grep 3002 || echo "NOT ON 3002!"
+echo "=== Port check after 10s ==="
+ss -tlnp | grep -E "(3000|3002)" || echo "No next ports"
 echo ""
-curl -s http://localhost:3002/ 2>/dev/null | grep -o '<title>[^<]*</title>' || echo "No title on 3002"
-echo ""
-curl -s http://localhost:3002/api/jobs 2>/dev/null | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    print(f'API: success={d.get(\"success\")}, jobs={len(d.get(\"data\",[]))}')
-except:
-    print('API failed')
-"
-echo ""
-echo "=== DONE ==="
+echo "=== Test ==="
+curl -s http://localhost:3002/api/jobs 2>/dev/null | head -50 || echo "3002 failed"
+curl -s http://localhost:3000/api/jobs 2>/dev/null | head -50 || echo "3000 failed"
+kill $NEXT_PID 2>/dev/null || true

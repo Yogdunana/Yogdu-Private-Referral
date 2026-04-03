@@ -263,10 +263,20 @@ if pm2 describe "${APP_NAME}" &>/dev/null; then
   pm2 delete "${APP_NAME}" 2>/dev/null || true
 fi
 
-# Start the application with PM2
+# Create startup script that loads .env
+cat > "${APP_DIR}/start.sh" << 'STARTEOF'
+#!/bin/bash
+set -a
+source "$(dirname "$0")/.env"
+set +a
+exec npx next start -p "${PORT:-3002}"
+STARTEOF
+chmod +x "${APP_DIR}/start.sh"
+
+# Start the application with PM2 using the startup script
 echo "  Starting application with PM2..."
 cd "${APP_DIR}"
-pm2 start npm --name "${APP_NAME}" -- start -- -p ${APP_PORT}
+pm2 start "${APP_DIR}/start.sh" --name "${APP_NAME}"
 
 # Save PM2 process list and configure startup
 pm2 save 2>/dev/null || true

@@ -226,12 +226,9 @@ echo "  .env file written with correct permissions."
 echo "[Step 9/10] Running Prisma migrations and seed..."
 cd "${APP_DIR}"
 
-echo "  Running prisma migrate deploy..."
-npx prisma migrate deploy 2>&1 || {
-  echo "  WARNING: Prisma migrate encountered issues."
-  echo "  Attempting to run prisma db push as fallback..."
-  npx prisma db push --accept-data-loss 2>&1 || echo "  WARNING: Fallback migration also had issues."
-} || true
+echo "  Running prisma db push..."
+npx prisma db push 2>&1 || echo "  WARNING: Prisma db push had issues."
+echo ""
 
 echo "  Running prisma db seed (errors are expected if data exists)..."
 npx prisma db seed 2>&1 || {

@@ -76,15 +76,19 @@ echo "[Step 3/10] Checking PostgreSQL..."
 if command -v psql &>/dev/null; then
   echo "  PostgreSQL $(psql --version | awk '{print $3}') is installed."
 else
-  echo "  Installing PostgreSQL 14..."
+  echo "  Installing PostgreSQL..."
   # Install prerequisites
   apt-get install -y -qq wget gnupg2 lsb-release 2>/dev/null || true
   # Add PostgreSQL APT repository
-  sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-  wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - 2>/dev/null || true
-  apt-get update -qq 2>/dev/null
-  apt-get install -y -qq postgresql-14 postgresql-client-14 2>/dev/null
-  echo "  PostgreSQL 14 installed."
+  DISTRO=$(lsb_release -cs 2>/dev/null || echo "jammy")
+  sh -c "echo 'deb http://apt.postgresql.org/pub/repos/apt ${DISTRO}-pgdg main' > /etc/apt/sources.list.d/pgdg.list" || true
+  # Import GPG key (modern method, fallback to apt-key)
+  mkdir -p /etc/apt/keyrings
+  wget -qO /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc 2>/dev/null || true
+  echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt ${DISTRO}-pgdg main" > /etc/apt/sources.list.d/pgdg.list || true
+  apt-get update -qq 2>/dev/null || true
+  apt-get install -y -qq postgresql postgresql-client 2>/dev/null || true
+  echo "  PostgreSQL installation attempted."
 fi
 
 # --- Ensure PostgreSQL is running ---
@@ -93,8 +97,9 @@ if ! pg_isready -q 2>/dev/null; then
   echo "  Starting PostgreSQL service..."
   # Try multiple methods to start PostgreSQL
   service postgresql start 2>/dev/null \
-    || pg_ctlcluster 14 main start 2>/dev/null \
+    || pg_ctlcluster $(ls /etc/postgresql/ 2>/dev/null | head -1) main start 2>/dev/null \
     || /etc/init.d/postgresql start 2>/dev/null \
+    || systemctl start postgresql 2>/dev/null \
     || true
   sleep 3
 fi
@@ -192,20 +197,23 @@ npx prisma migrate deploy 2>&1 || {
   echo "  WARNING: Prisma migrate encountered issues."
   echo "  Attempting to run prisma db push as fallback..."
   npx prisma db push --accept-data-loss 2>&1 || echo "  WARNING: Fallback migration also had issues."
-}
+} || true
 
 echo "  Running prisma db seed (errors are expected if data exists)..."
 npx prisma db seed 2>&1 || {
   echo "  NOTE: Seed command completed with non-zero exit code."
   echo "  This is normal if seed data already exists in the database."
-}
+} || true
 
 # --- Build and start with PM2 ---
 echo "[Step 10/10] Building and starting application..."
 cd "${APP_DIR}"
 
 echo "  Building Next.js application (this may take a few minutes)..."
-npm run build 2>&1 | tail -5
+npm run build 2>&1 | tail -10 || {
+  echo "  ERROR: Build failed! Check the logs above."
+  exit 1
+}
 echo "  Build complete."
 
 # Install PM2 if not present

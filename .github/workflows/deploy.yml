@@ -79,6 +79,7 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_PORT: "3002"
         run: |
           SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
 
@@ -117,6 +118,7 @@ jobs:
              EMAIL_FROM=\"${EMAIL_FROM}\" \
              NEXT_PUBLIC_APP_URL=\"${NEXT_PUBLIC_APP_URL}\" \
              GITHUB_TOKEN=\"${GITHUB_TOKEN}\" \
+             APP_PORT=\"${APP_PORT}\" \
              DEPLOY_SOURCE=tarball \
              bash /tmp/deploy.sh"
 

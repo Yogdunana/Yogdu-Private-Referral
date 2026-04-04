@@ -1,13 +1,12 @@
 #!/bin/bash
-set -e
 
 echo "=== 1. 磁盘清理 ==="
-rm -rf /opt/yogdu-referral/.next/cache 2>/dev/null
-rm -rf /tmp/* 2>/dev/null
+rm -rf /opt/yogdu-referral/.next 2>/dev/null || true
+rm -rf /tmp/* 2>/dev/null || true
 npm cache clean --force 2>/dev/null || true
 docker system prune -af 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
-rm -rf /var/log/*.gz /var/log/nginx/*.gz 2>/dev/null
+rm -rf /var/log/*.gz /var/log/nginx/*.gz 2>/dev/null || true
 pm2 flush 2>/dev/null || true
 echo "磁盘可用: $(df -h / | tail -1 | awk '{print $4}')"
 

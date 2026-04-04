@@ -184,13 +184,15 @@ cd "${APP_DIR}"
 
 # Clean disk before npm install to avoid ENOSPC
 echo "  Pre-cleanup disk space..."
-rm -rf /opt/yogdu-referral/.next/cache 2>/dev/null
+rm -rf /opt/yogdu-referral/.next 2>/dev/null
 rm -rf /opt/yogdu-referral/node_modules/.cache 2>/dev/null
 rm -rf /tmp/* 2>/dev/null
 npm cache clean --force 2>/dev/null || true
 docker system prune -af 2>/dev/null || true
 journalctl --vacuum-size=50M 2>/dev/null || true
 rm -rf /var/log/*.gz /var/log/nginx/*.gz 2>/dev/null
+rm -rf /root/.npm/_cacache 2>/dev/null
+rm -rf /home/*/.npm/_cacache 2>/dev/null
 echo "  Available: $(df -h / | tail -1 | awk '{print $4}')"
 
 npm install 2>&1 | tail -3

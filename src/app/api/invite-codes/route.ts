@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireRole } from '@/lib/auth-helpers';
 import { handleApiError, successResponse, AppError } from '@/lib/errors';
@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return successResponse({
+    return NextResponse.json({
+      success: true,
       data: codes,
       total,
       page,

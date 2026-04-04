@@ -65,9 +65,13 @@ echo "=== 4. API测试 ==="
 curl -s http://localhost:3002/api/jobs | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
-print(f'前台API: success={d.get(\"success\")}, total={d.get(\"data\",{}).get(\"total\",0)}')
-for j in d.get('data',{}).get('data',[])[:3]:
-    print(f'  - {j.get(\"title\")} [{j.get(\"status\")}]')
+data = d.get('data',[])
+total = d.get('total',0)
+tp = d.get('totalPages',1)
+print(f'前台API: success={d.get(\"success\")}, total={total}, pages={tp}, jobs={len(data) if isinstance(data,list) else \"NOT_ARRAY\"}')
+if isinstance(data, list):
+    for j in data[:3]:
+        print(f'  - {j.get(\"title\",\"?\")} [{j.get(\"status\")}]')
 "
 
 echo "=== 5. 登录测试 ==="
